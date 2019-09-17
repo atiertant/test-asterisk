@@ -2,21 +2,14 @@
 - hosts: alotim_telephony
   remote_user: root
   become: yes
-  become_user: root
-  
-  tasks:
-      
+  become_user: root  
+  vars:
+    iasterisk_url_sounds: http://downloads.asterisk.org/pub/telephony/sounds/asterisk-core-sounds-fr-wav-current.tar.gz  
+  tasks:      
   - name: Download and extract Asterisk sounds {{iasterisk_url_sounds}} to /tmp/
-    unarchive: "src={{iasterisk_url_sounds}} dest=/tmp/sounds/ remote_src=yes"       
-    
+    unarchive: "src={{iasterisk_url_sounds}} dest=/tmp/sounds/ remote_src=yes"           
   - name: copy /tmp/sounds /var/lib/asterisk/sounds/fr
-    command: 'cp -r /tmp/sounds/. /var/lib/asterisk/sounds/fr/'
-    
-  - name: restart asterisk
-    service:
-      name: asterisk
-      state: restarted
-      
+    command: 'cp -r /tmp/sounds/. /var/lib/asterisk/sounds/fr/'    
   - meta: end_play
   ##############################################################################################################"
   
