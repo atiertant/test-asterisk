@@ -1,0 +1,57 @@
+---
+- hosts: alotim_telephony
+  remote_user: root
+  become: yes
+  become_user: root
+
+  vars_prompt:    
+
+    - name: asterisk_mariadb_password
+      prompt: "pour res_odbc.conf: mot de passe du user mariadb 'asterisk' ?"
+      
+  vars:
+# vars file for install-asterisk
+    asterisk_user: asterisk
+    asterisk_group: asterisk
+    do_asterisk_src_download: true
+    
+    alotim_core_sounds_dir: "alotim_core"
+    alotim_spool_dir: " /var/spool/asterisk/alotim/"
+    
+    iasterisk_spool_dir: /var/spool/asterisk/monitor/
+    
+    iasterisk_etcdir: /etc/asterisk/
+    iasterisk_srcdir: /usr/src/asterisk/
+    #iasterisk_url: http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-16.0.1.tar.gz
+    iasterisk_url: http://downloads.asterisk.org/pub/telephony/asterisk/old-releases/asterisk-16.0.1.tar.gz
+    iasterisk_url_sounds: http://downloads.asterisk.org/pub/telephony/sounds/asterisk-core-sounds-fr-wav-current.tar.gz
+    iasterisk_path_sound: /var/lib/asterisk/sounds/fr
+    # set asterisk user / group and rights
+    configure_user: true
+    # Useful tools
+    asterisk_tools: sox,lame,mpg123,swaks,mutt
+    asterisk_menu_select: "menuselect.makeopts.j2"
+    
+    #dialplan_repo: git@git.chuv.ch:alotim/dialplan.git
+    dialplan_repo: https://phd:phildeb71@framagit.org/phd/dialplan.git
+    
+  tasks:
+
+  - name: install git
+    command: yum install -y git
+
+      
+  - name: Download and extract Asterisk sounds {{iasterisk_url_sounds}} to /tmp/
+    unarchive: "src={{iasterisk_url_sounds}} dest=/tmp/sounds/ remote_src=yes"       
+    
+  - name: copy /tmp/sounds /var/lib/asterisk/sounds/fr
+    command: 'cp -r /tmp/sounds/. /var/lib/asterisk/sounds/fr/'
+    
+  - name: restart asterisk
+    service:
+      name: asterisk
+      state: restarted
+      
+  - meta: end_play
+  ##############################################################################################################"
+  
