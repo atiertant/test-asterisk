@@ -1,0 +1,162 @@
+---
+- hosts: alotim_telephony
+  remote_user: root
+  become: yes
+  become_user: root
+  
+  vars:
+# vars file for install-asterisk
+    asterisk_user: asterisk
+    asterisk_group: asterisk
+    do_asterisk_src_download: true
+    do_asterisk_yum_install: true
+    
+    iasterisk_srcdir: /usr/src/asterisk/
+    #iasterisk_url: http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-16.0.1.tar.gz
+    iasterisk_url: http://downloads.asterisk.org/pub/telephony/asterisk/old-releases/asterisk-16.0.1.tar.gz
+    # set asterisk user / group and rights
+    configure_user: true
+    # Useful tools
+    asterisk_tools: sox,lame,mpg123,swaks,mutt
+    asterisk_menu_select: "menuselect.makeopts.j2"
+    
+  tasks:
+  
+  - name: suppression repertoires asterisk
+    file: "path={{item.path}} state=absent"
+    with_items:
+      - { path: '/usr/src/asterisk/' }  
+      - { path: '/tmp/asterisk/' }  
+      - { path: '/tmp/git/' }  
+      - { path: '/tmp/sounds/' }  
+      - { path: '/etc/asterisk/' }  
+      - { path: '/var/spool/asterisk/' }  
+      - { path: '/var/lib/asterisk/sounds/' }  
+      - { path: '/var/lib/asterisk/sounds/fr/' }             
+  
+  - name: Install svn utile pour contrib scripts
+    yum:
+      name: svn,logrotate
+      state: latest   
+      
+  - name: Install epel
+    yum: "pkg=epel-release state=installed"
+
+  - name: Install asterisk pre-requisites via yum
+    yum: "pkg={{item}} state=present"
+    with_items:
+      - kernel-headers 
+      - gcc 
+      - gcc-c++ 
+      - cpp 
+      - ncurses 
+      - ncurses-devel 
+      - libxml2 
+      - libxml2-devel 
+      - sqlite 
+      - sqlite-devel 
+      - openssl-devel 
+      - newt-devel 
+      - kernel-devel
+      - libuuid-devel 
+      - net-snmp-devel
+      - bzip2
+      - jansson-devel
+      - make
+      - patch
+      - libedit-devel
+      - unixODBC-devel  
+    when: do_asterisk_yum_install
+ 
+  - name: "Create Asterisk Group"
+    group: "name={{ asterisk_group }} state=present"
+
+  - name: "Add Asterisk User"
+    #user: "name={{ asterisk_user }} comment='Asterisk process user' group={{ asterisk_group }}"
+    user: "name={{ asterisk_user }} comment='Asterisk process user' shell=/sbin/nologin group={{ asterisk_group }}"
+
+
+  - name: suppression repertoires asterisk
+    file: "path={{item.path}} state=absent"
+    with_items:
+      - { path: '/usr/src/asterisk/' }  
+           
+  - name: creation repertoires asterisk
+    #command: "mkdir -p {{item.path}}"    
+    file: "path={{item.path}} state=directory"
+    with_items:
+      - { path: '/usr/src/asterisk/' }  
+ 
+  - name: Download and extract Asterisk source
+    unarchive: "src={{ iasterisk_url }} dest={{ iasterisk_srcdir }} remote_src=yes extra_opts=--strip-components=1"
+    when: do_asterisk_src_download
+      
+  - name: Find Asterisk path
+    find:
+      file_type: directory
+      paths: /usr/src
+      patterns: "^asterisk"
+      use_regex: yes
+    register: asterisk_path
+    
+  - name: Asterisk path
+    debug:
+      msg: "asterisk_path is {{asterisk_path.files.0.path}}"
+         
+  - name: Configure and install asterisk
+    command: "{{ item.command }}"
+    args:
+      chdir: "{{ asterisk_path.files.0.path }}"
+      creates: "{{ item.creates }}"
+    with_items:
+      - { command: './configure --with-jansson-bundled', creates: "{{ asterisk_path.files.0.path }}/config.log" }
+      #- { command: 'contrib/scripts/get_mp3_source.sh', creates: "{{ asterisk_path.files.0.path }}/addons/mp3" }
+      
+  - name: Install Asterisk prereqs - call a *magic* script install_prereq
+    command: "contrib/scripts/install_prereq install"
+    args:
+      chdir: "{{ asterisk_path.files.0.path }}"
+    changed_when: false  
+   
+  - name: copy asterisk makeopts template
+    template:
+      src={{asterisk_menu_select}}
+      dest="{{iasterisk_srcdir}}/menuselect.makeopts"
+         
+  - name: Build Asterisk from tarball
+    command: "{{ item }} chdir={{ iasterisk_srcdir }}"
+    with_items:
+      #- make menuselect.makeopts
+      - make
+      #- make uninstall
+      - make install
+      - make config
+      - make install-logrotate
+    
+  - name: Set ownership on important directories for the asterisk user
+    file: "path={{ item.path }} owner={{ asterisk_user }} group={{ asterisk_group}} recurse=yes"
+    with_items:
+      #- { path: '/usr/lib64/asterisk/' }
+      - { path: '/var/lib/asterisk/' }
+      - { path: '/var/spool/asterisk/' }
+      - { path: '/var/log/asterisk/' }
+      - { path: '/var/run/asterisk/' }
+
+  - name: Set ownership on important files for the asterisk user
+    file: "path={{ item.path }} owner={{ asterisk_user }} group={{ asterisk_group}}"
+    with_items:
+      - { path: '/usr/sbin/asterisk' }  
+            
+  - name: Install useful tools via yum
+    yum: "pkg={{ item }} state=present"
+    with_items: "{{ asterisk_tools }}"
+    
+  - name: restart asterisk
+    service:
+      name: asterisk
+      state: restarted
+      enabled: yes
+  
+  - meta: end_play    
+######################################################################################################################  
+
